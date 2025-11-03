@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
@@ -34,14 +34,13 @@ public class AudioManager : MonoBehaviour
 
 	public void PlayNewPlaylist(AudioClip[] playlist)
 	{
-		//Debug.Log("Force Start Music");
 		musicPlaylist = playlist;
 		forceMusicRestart = true;
 	}
 
 	public bool IsPlayingMusic()
 	{
-		return (musicPlaylist != null && musicPlaylist.Length>0);
+		return (musicPlaylist != null && musicPlaylist.Length > 0);
 	}
 
 	private IEnumerator MusicPlayer()
@@ -73,7 +72,7 @@ public class AudioManager : MonoBehaviour
 					waitForNextTrack -= Time.deltaTime;
 					continue;
 				}
-				if (musicPlaylist == null || musicPlaylist.Length==0) continue;
+				if (musicPlaylist == null || musicPlaylist.Length == 0) continue;
 				if (musicAudioSource.clip != null)
 				{
 					int currentIndex = System.Array.IndexOf(musicPlaylist, musicAudioSource.clip);
@@ -141,7 +140,6 @@ public class AudioManager : MonoBehaviour
 
 		Debug.Log("Dig sounds started loading");
 
-
 		ready = true;
 	}
 
@@ -168,19 +166,10 @@ public class AudioManager : MonoBehaviour
 		}
 	}
 
+	// ✅ 改进后的 Dig 类（安全防御版）
 	[System.Serializable]
 	public class Dig
 	{
-		public void Play(Type type, Vector3 position)
-		{
-			Debug.Log("Playing sound of type " + type);
-			AudioClip[] clips = GetClips(type);
-			if (clips == null) return;
-			AudioClip clip = clips[Random.Range(0,clips.Length)];
-			//Debug.Log("Playing sound " + clip.name);
-			AudioSource.PlayClipAtPoint(clip, position);
-		}
-
 		public enum Type
 		{
 			Silent,
@@ -189,6 +178,37 @@ public class AudioManager : MonoBehaviour
 			Gravel,
 			Grass
 		}
+
+		public AudioClip[] stone, wood, gravel, grass;
+
+		public void Play(Type type, Vector3 position)
+		{
+			if (AudioManager.instance == null || !AudioManager.instance.ready)
+			{
+				Debug.LogWarning("[AudioManager.Dig] Not ready yet, skip playing.");
+				return;
+			}
+
+			Debug.Log($"Playing sound of type {type}");
+
+			AudioClip[] clips = GetClips(type);
+
+			int count = clips?.Length ?? 0;
+			if (count == 0)
+			{
+				Debug.LogWarning($"[AudioManager.Dig] No clips for type={type}. " +
+								 $"stone={stone?.Length ?? 0}, wood={wood?.Length ?? 0}, " +
+								 $"gravel={gravel?.Length ?? 0}, grass={grass?.Length ?? 0}");
+				return;
+			}
+
+			int idx = UnityEngine.Random.Range(0, count);
+			AudioClip clip = clips[idx];
+			if (clip == null) return;
+
+			AudioSource.PlayClipAtPoint(clip, position);
+		}
+
 		public AudioClip[] GetClips(Type type)
 		{
 			switch (type)
@@ -197,13 +217,11 @@ public class AudioManager : MonoBehaviour
 				case Type.Wood: return wood;
 				case Type.Gravel: return gravel;
 				case Type.Grass: return grass;
+				default: return System.Array.Empty<AudioClip>();
 			}
-			return null;
 		}
-		public AudioClip[] stone, wood, gravel, grass;
 	}
 
-	//https://stackoverflow.com/questions/273313/randomize-a-listt
 	private System.Random rnd = new System.Random();
 	private IList<T> Shuffle<T>(IList<T> list)
 	{
@@ -218,5 +236,4 @@ public class AudioManager : MonoBehaviour
 		}
 		return list;
 	}
-
 }
