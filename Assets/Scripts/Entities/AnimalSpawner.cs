@@ -1,54 +1,75 @@
 using UnityEngine;
+using System.Collections;
 
-public class AnimalSpawner : MonoBehaviour
+public class AutoAnimalSpawner : MonoBehaviour
 {
+    [Header("Resources path (no extension). Example: Entities/Pig")]
+    public string pigResourcePath = "Entities/Pig";   // Resources/Entities/Pig.prefab
+
     [Header("Spawn Settings")]
-    public GameObject pigPrefab;        // Assign Pig Prefab here
-    public int spawnCount = 10;         // how many pigs to spawn
-    public Vector2 worldSize = new Vector2(50, 50); // X-Z range
-    public float baseY = 10f;           // estimated ground Y (you can adjust)
+    public int spawnCount = 6;
+    public float radiusAroundPlayer = 40f;           // spawn around player
+    public float startDelaySeconds = 1.5f;           // wait for world/chunks to load
 
-    [Header("Y auto-correct")]
-    public LayerMask groundMask;        // ground mask for raycast
+    [Header("Grounding")]
+    public LayerMask groundMask = ~0;                // Everything
+    public float raycastUp = 80f;
+    public float raycastDown = 200f;
 
-    void Start()
+    private Transform _player;
+
+    private void Awake()
     {
-        SpawnAnimals();
+        DontDestroyOnLoad(gameObject);               // survive Menu -> Game
     }
 
-    void SpawnAnimals()
+    private void Start()
     {
+        StartCoroutine(SpawnRoutine());
+    }
+
+    IEnumerator SpawnRoutine()
+    {
+        // small delay to allow scene/world to initialize
+        yield return new WaitForSeconds(startDelaySeconds);
+
+        // find player if exists
+        var playerGO = GameObject.FindGameObjectWithTag("Player");
+        _player = playerGO ? playerGO.transform : null;
+
+        // load pig prefab from Resources
+        var pigPrefab = Resources.Load<GameObject>(pigResourcePath);
         if (pigPrefab == null)
         {
-            Debug.LogWarning("Pig Prefab not assigned in spawner!");
-            return;
+            Debug.LogWarning($"AutoAnimalSpawner: Resources.Load failed at '{pigResourcePath}'. " +
+                             $"Ensure you have Resources/{pigResourcePath}.prefab");
+            yield break;
         }
 
         for (int i = 0; i < spawnCount; i++)
         {
-            Vector3 pos = RandomXZ();
-
-            // Try to ground-align
+            Vector3 center = _player ? _player.position : Vector3.zero;
+            Vector3 pos = RandomOnXZCircle(center, radiusAroundPlayer, 10f); // baseY 10
             pos = SnapToGround(pos);
-
-            Instantiate(pigPrefab, pos, Quaternion.identity, transform);
+            Instantiate(pigPrefab, pos, Quaternion.identity);
+            yield return null; // small spread across frames
         }
     }
 
-    Vector3 RandomXZ()
+    Vector3 RandomOnXZCircle(Vector3 center, float r, float baseY)
     {
-        float x = Random.Range(-worldSize.x, worldSize.x);
-        float z = Random.Range(-worldSize.y, worldSize.y);
+        float angle = Random.Range(0f, Mathf.PI * 2f);
+        float dist = Random.Range(r * 0.4f, r);
+        float x = center.x + Mathf.Cos(angle) * dist;
+        float z = center.z + Mathf.Sin(angle) * dist;
         return new Vector3(x, baseY, z);
     }
 
     Vector3 SnapToGround(Vector3 pos)
     {
-        // cast down
-        if (Physics.Raycast(pos + Vector3.up * 50f, Vector3.down, out var hit, 200f, groundMask))
-        {
-            return hit.point;
-        }
+        Vector3 start = pos + Vector3.up * raycastUp;
+        if (Physics.Raycast(start, Vector3.down, out var hit, raycastUp + raycastDown, groundMask))
+            return hit.point + Vector3.up * 0.05f; // small lift
         return pos;
     }
 }
