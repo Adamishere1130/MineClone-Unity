@@ -17,8 +17,8 @@ public class AnimalAgent : MonoBehaviour
     protected Coroutine _fsm;
 
     // --------- tunable virtual hooks (species can override) ---------
-    protected virtual float WanderYawRangeDeg => 90f;   // ±deg per sec jitter base
-    protected virtual float GrazeYawJitterDeg => 10f;   // small head sway during graze
+    protected virtual float WanderYawRangeDeg => 90f;    // ±deg per sec jitter base
+    protected virtual float GrazeYawJitterDeg => 10f;    // small head sway during graze
     protected virtual float ObstacleAvoidYawDeg => 120f; // quick turn when obstacle/cliff
     protected virtual float FleeSpeedMultiplier => 1.0f; // species may flee faster/slower
     // ----------------------------------------------------------------
@@ -64,7 +64,6 @@ public class AnimalAgent : MonoBehaviour
             t -= Time.deltaTime;
             yield return null;
         }
-        // decide next state using stats.grazeChance
         _state = (Random.value < stats.grazeChance) ? AnimalState.Graze : AnimalState.Wander;
     }
 
@@ -137,17 +136,20 @@ public class AnimalAgent : MonoBehaviour
     }
     // ---------------------------------------------------------
 
-    protected bool ShouldFlee()
+    // *** FIX: make this virtual so subclasses (e.g., PigAgent) can override ***
+    protected virtual bool ShouldFlee()
     {
         return (stats != null && senses != null && threat != null && senses.SeeTarget(threat));
     }
 }
 
 // ===================== Pig (species) in SAME file =====================
-// You keep file name as AnimalAgent.cs; Unity allows additional classes.
 public class PigAgent : AnimalAgent
 {
-    // Example: pigs turn a bit wider while wandering; normal flee speed.
+    // Pigs never flee
+    protected override bool ShouldFlee() => false;
+
+    // Optional tweaks
     protected override float WanderYawRangeDeg => 80f;
     protected override float GrazeYawJitterDeg => 12f;
     protected override float ObstacleAvoidYawDeg => 140f;
