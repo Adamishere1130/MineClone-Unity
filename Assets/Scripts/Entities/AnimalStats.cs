@@ -4,22 +4,27 @@ using UnityEngine;
 public class AnimalStats : ScriptableObject
 {
     [Header("Movement")]
-    public float walkSpeed = 2.2f;
-    public float runSpeed = 4.5f;
+    public float walkSpeed = 2.0f;
+    public float runSpeed  = 4.0f;
 
     [Header("Perception")]
     [Tooltip("Max distance to detect targets")]
     public float viewRadius = 12f;
-
     [Tooltip("Horizontal viewing angle in degrees")]
-    public float viewAngle = 120f;
+    public float viewAngle  = 120f;
 
-    [Header("Wander")]
-    [Tooltip("Radius used when selecting random wander points")]
-    public float wanderRadius = 8f;
+    [Header("Idle/Wander/Graze")]
+    [Tooltip("Seconds")]
     public float minIdleTime = 1f;
     public float maxIdleTime = 3f;
 
-    [Header("Misc")]
+    [Tooltip("Probability to choose Graze instead of Wander after Idle (0~1)")]
+    [Range(0f, 1f)] public float grazeChance = 0.4f;
+
+    [Header("Turning")]
     public float turnSpeedDegPerSec = 360f;
+
+    [Header("Flee")]
+    [Tooltip("How long a flee burst lasts (seconds)")]
+    public Vector2 fleeDurationRange = new Vector2(2f, 3f);
 }

@@ -3,25 +3,32 @@ using System.Collections;
 
 public enum AnimalState { Idle, Wander, Graze, Flee }
 
+[DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
 public class AnimalAgent : MonoBehaviour
 {
     [Header("Config / References")]
-    public AnimalStats stats;
+    public AnimalStats  stats;
     public AnimalSenses senses;
-    public Transform threat;
+    public Transform    threat;          // usually the player
 
-    private CharacterController _cc;
-    private AnimalState _state;
-    private Coroutine _fsm;
+    protected CharacterController _cc;
+    protected AnimalState _state;
+    protected Coroutine _fsm;
 
-    private void Awake()
+    // --------- tunable virtual hooks (species can override) ---------
+    protected virtual float WanderYawRangeDeg => 90f;   // ±deg per sec jitter base
+    protected virtual float GrazeYawJitterDeg => 10f;   // small head sway during graze
+    protected virtual float ObstacleAvoidYawDeg => 120f; // quick turn when obstacle/cliff
+    protected virtual float FleeSpeedMultiplier => 1.0f; // species may flee faster/slower
+    // ----------------------------------------------------------------
+
+    protected virtual void Awake()
     {
         _cc = GetComponent<CharacterController>();
         if (senses == null) senses = GetComponent<AnimalSenses>();
         if (senses != null && senses.eyes == null) senses.eyes = transform;
 
-        // Auto find player by tag
         if (threat == null)
         {
             var player = GameObject.FindGameObjectWithTag("Player");
@@ -29,15 +36,8 @@ public class AnimalAgent : MonoBehaviour
         }
     }
 
-    private void OnEnable()
-    {
-        _fsm = StartCoroutine(FSM());
-    }
-
-    private void OnDisable()
-    {
-        if (_fsm != null) StopCoroutine(_fsm);
-    }
+    protected virtual void OnEnable()  { _fsm = StartCoroutine(FSM()); }
+    protected virtual void OnDisable() { if (_fsm != null) StopCoroutine(_fsm); }
 
     IEnumerator FSM()
     {
@@ -54,7 +54,8 @@ public class AnimalAgent : MonoBehaviour
         }
     }
 
-    IEnumerator Idle()
+    // ------------------------- States -------------------------
+    protected virtual IEnumerator Idle()
     {
         float t = Random.Range(stats.minIdleTime, stats.maxIdleTime);
         while (t > 0f)
@@ -63,31 +64,34 @@ public class AnimalAgent : MonoBehaviour
             t -= Time.deltaTime;
             yield return null;
         }
-        _state = (Random.value < 0.6f) ? AnimalState.Wander : AnimalState.Graze;
+        // decide next state using stats.grazeChance
+        _state = (Random.value < stats.grazeChance) ? AnimalState.Graze : AnimalState.Wander;
     }
 
-    IEnumerator Wander()
+    protected virtual IEnumerator Wander()
     {
         float dur = Random.Range(2f, 4f);
         float t = 0f;
-        float yaw = Random.Range(-90f, 90f);
+        float yaw = Random.Range(-WanderYawRangeDeg, WanderYawRangeDeg);
 
         while (t < dur)
         {
             if (ShouldFlee()) { _state = AnimalState.Flee; yield break; }
 
-            transform.Rotate(0f, yaw * Time.deltaTime * 0.5f, 0f);
+            // avoid obstacle/cliff with a quick turn
+            if (senses.CliffAhead() || senses.ObstacleAhead())
+                transform.Rotate(0f, ObstacleAvoidYawDeg * Time.deltaTime, 0f);
+            else
+                transform.Rotate(0f, yaw * Time.deltaTime * 0.5f, 0f);
 
-            if (!senses.CliffAhead() && !senses.ObstacleAhead())
-                _cc.SimpleMove(transform.forward * stats.walkSpeed);
-
+            _cc.SimpleMove(transform.forward * stats.walkSpeed);
             t += Time.deltaTime;
             yield return null;
         }
         _state = AnimalState.Idle;
     }
 
-    IEnumerator Graze()
+    protected virtual IEnumerator Graze()
     {
         float dur = Random.Range(2f, 5f);
         float t = 0f;
@@ -96,16 +100,17 @@ public class AnimalAgent : MonoBehaviour
         {
             if (ShouldFlee()) { _state = AnimalState.Flee; yield break; }
 
-            transform.Rotate(0f, Random.Range(-10f, 10f) * Time.deltaTime, 0f);
+            // gentle sway
+            transform.Rotate(0f, Random.Range(-GrazeYawJitterDeg, GrazeYawJitterDeg) * Time.deltaTime, 0f);
             t += Time.deltaTime;
             yield return null;
         }
         _state = AnimalState.Idle;
     }
 
-    IEnumerator Flee()
+    protected virtual IEnumerator Flee()
     {
-        float dur = Random.Range(2f, 3f);
+        float dur = Random.Range(stats.fleeDurationRange.x, stats.fleeDurationRange.y);
         float t = 0f;
 
         while (t < dur)
@@ -118,23 +123,34 @@ public class AnimalAgent : MonoBehaviour
                 {
                     Quaternion target = Quaternion.LookRotation(away.normalized, Vector3.up);
                     transform.rotation = Quaternion.RotateTowards(
-                        transform.rotation,
-                        target,
-                        stats.turnSpeedDegPerSec * Time.deltaTime);
+                        transform.rotation, target, stats.turnSpeedDegPerSec * Time.deltaTime);
                 }
             }
 
-            if (!senses.CliffAhead() && !senses.ObstacleAhead())
-                _cc.SimpleMove(transform.forward * stats.runSpeed);
+            if (!(senses.CliffAhead() || senses.ObstacleAhead()))
+                _cc.SimpleMove(transform.forward * (stats.runSpeed * FleeSpeedMultiplier));
 
             t += Time.deltaTime;
             yield return null;
         }
         _state = AnimalState.Idle;
     }
+    // ---------------------------------------------------------
 
-    private bool ShouldFlee()
+    protected bool ShouldFlee()
     {
         return (stats != null && senses != null && threat != null && senses.SeeTarget(threat));
     }
 }
+
+// ===================== Pig (species) in SAME file =====================
+// You keep file name as AnimalAgent.cs; Unity allows additional classes.
+public class PigAgent : AnimalAgent
+{
+    // Example: pigs turn a bit wider while wandering; normal flee speed.
+    protected override float WanderYawRangeDeg => 80f;
+    protected override float GrazeYawJitterDeg => 12f;
+    protected override float ObstacleAvoidYawDeg => 140f;
+    protected override float FleeSpeedMultiplier => 1.0f;
+}
+// ======================================================================
