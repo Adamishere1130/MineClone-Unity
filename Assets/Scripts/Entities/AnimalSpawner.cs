@@ -8,11 +8,11 @@ public class AutoAnimalSpawner : MonoBehaviour
 
     [Header("Spawn Settings")]
     public int spawnCount = 6;
-    public float radiusAroundPlayer = 40f;           // spawn around player
-    public float startDelaySeconds = 1.5f;           // wait for world/chunks to load
+    public float radiusAroundPlayer = 20f;            // 先调小，刷在你身边更明显
+    public float startDelaySeconds = 2.5f;            // 给世界一点时间加载
 
     [Header("Grounding")]
-    public LayerMask groundMask = ~0;                // Everything
+    public LayerMask groundMask = ~0;                 // Everything
     public float raycastUp = 80f;
     public float raycastDown = 200f;
 
@@ -20,7 +20,7 @@ public class AutoAnimalSpawner : MonoBehaviour
 
     private void Awake()
     {
-        DontDestroyOnLoad(gameObject);               // survive Menu -> Game
+        DontDestroyOnLoad(gameObject);                // survive Menu -> Game
     }
 
     private void Start()
@@ -48,10 +48,17 @@ public class AutoAnimalSpawner : MonoBehaviour
 
         for (int i = 0; i < spawnCount; i++)
         {
-            Vector3 center = _player ? _player.position : Vector3.zero;
-            Vector3 pos = RandomOnXZCircle(center, radiusAroundPlayer, 10f); // baseY 10
+            // ✅ 改1：没有 Player 时，以主相机为中心；再不行就用(0,0,0)
+            Vector3 center = _player
+                ? _player.position
+                : (Camera.main ? Camera.main.transform.position : Vector3.zero);
+
+            Vector3 pos = RandomOnXZCircle(center, radiusAroundPlayer, center.y + 1f);
             pos = SnapToGround(pos);
-            Instantiate(pigPrefab, pos, Quaternion.identity);
+
+            var go = Instantiate(pigPrefab, pos, Quaternion.identity);
+            Debug.Log($"[Spawner] Spawned pig at {pos} -> {go.name}");   // ✅ 改2：日志确认确实刷了
+
             yield return null; // small spread across frames
         }
     }
@@ -69,7 +76,10 @@ public class AutoAnimalSpawner : MonoBehaviour
     {
         Vector3 start = pos + Vector3.up * raycastUp;
         if (Physics.Raycast(start, Vector3.down, out var hit, raycastUp + raycastDown, groundMask))
-            return hit.point + Vector3.up * 0.05f; // small lift
-        return pos;
+            return hit.point + Vector3.up * 0.3f;  // 小抬高，避免卡地面
+
+        // ✅ 改3：兜底。如果没打到地面，就用主相机高度附近，避免藏在地下/天外
+        float y = Camera.main ? Camera.main.transform.position.y + 1f : pos.y;
+        return new Vector3(pos.x, y, pos.z);
     }
 }
