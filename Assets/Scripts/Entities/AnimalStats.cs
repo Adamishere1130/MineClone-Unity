@@ -5,16 +5,17 @@ public class AnimalStats : ScriptableObject
 {
     [Header("Movement")]
     public float walkSpeed = 2.2f;
-    public float runSpeed  = 4.5f;
+    public float runSpeed = 4.5f;
 
     [Header("Perception")]
-    [Tooltip("能看到目标的最大半径")]
+    [Tooltip("Max distance to detect targets")]
     public float viewRadius = 12f;
-    [Tooltip("水平视角（度）")]
-    public float viewAngle  = 120f;
+
+    [Tooltip("Horizontal viewing angle in degrees")]
+    public float viewAngle = 120f;
 
     [Header("Wander")]
-    [Tooltip("随机游走的半径（用于选目标点等扩展）")]
+    [Tooltip("Radius used when selecting random wander points")]
     public float wanderRadius = 8f;
     public float minIdleTime = 1f;
     public float maxIdleTime = 3f;
